@@ -2,7 +2,9 @@
 
 //--------------------------------------------------------------
 void ofApp::setup(){
-    
+    photoMosaic = YJL::PhotoMosaic();
+    photoMosaic.loadImages("/Users/peacedove/Pictures/Wallpaper");
+    photoMosaic.loadBaseImage("base.jpg");
 }
 
 //--------------------------------------------------------------
@@ -12,7 +14,7 @@ void ofApp::update(){
 
 //--------------------------------------------------------------
 void ofApp::draw(){
-
+    photoMosaic.debugDraw();
 }
 
 //--------------------------------------------------------------
@@ -66,6 +68,6 @@ void ofApp::gotMessage(ofMessage msg){
 }
 
 //--------------------------------------------------------------
-void ofApp::dragEvent(ofDragInfo dragInfo){ 
+void ofApp::dragEvent(ofDragInfo dragInfo){
 
 }

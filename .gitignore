@@ -23,7 +23,6 @@ apps/*
 # also, see examples/.gitignore
 !bin/
 bin/*
-!bin/data/
 obj/
 
 #########################
