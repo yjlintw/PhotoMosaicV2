@@ -19,8 +19,9 @@ namespace YJL {
         PhotoMosaic();
         // Functions
         void loadImages(std::string dirPath);
+        void loadImagesFromTxt(std::string txtPath);
         void loadBaseImage(std::string filePath);
-        cv::Mat tileToImages(cv::Mat& matchList, const cv::Mat& tileMat);
+        cv::Mat tileToImages();
         
         void debugDraw();
         
@@ -32,8 +33,12 @@ namespace YJL {
         cv::Mat baseMat;
         cv::Mat tileMat;
         cv::Mat resultMat;
+        cv::Mat matchList;
         
         void computeTileAvgRGB(const cv::Mat& mat, cv::Mat& tileMat, cv::Mat& debugMat);
         int findNearestImage(cv::Scalar color);
+        void saveImagesInfoToDisk();
+        void getNearestImageSet(std::vector<std::vector<cv::Point2d> >& imageMap);
+        
     };
 }

@@ -6,18 +6,28 @@ using namespace YJL;
 PhotoMosaic::PhotoMosaic() {
     TILE_WIDTH = 8;
     TILE_HEIGHT = 6;
-    OUT_RES_W = 1776;
-    OUT_RES_H = 1332;
+    OUT_RES_W = 1776 * 10;
+    OUT_RES_H = 1332 * 10;
 }
 
 void PhotoMosaic::debugDraw() {
-    if (resultImage.isAllocated()) {
-        resultImage.draw(0, 0, resultImage.getWidth() / 2, resultImage.getHeight() / 2);
+//    if (resultImage.isAllocated()) {
+//        resultImage.draw(0, 0, resultImage.getWidth() / 2, resultImage.getHeight() / 2);
+//    }
+//
+//    if (tileImage.isAllocated()) {
+//        tileImage.draw(resultImage.getWidth() / 2, 0, tileImage.getWidth(), tileImage.getHeight());
+//    }
+}
+
+void PhotoMosaic::saveImagesInfoToDisk() {
+    ofFile file;
+    file.open(ofToDataPath("info.txt"), ofFile::WriteOnly, false);
+    for (int i = 0; i < images.size(); i++) {
+        file << images[i].print() << "\n";
     }
     
-    if (tileImage.isAllocated()) {
-        tileImage.draw(resultImage.getWidth() / 2, 0, tileImage.getWidth(), tileImage.getHeight());
-    }
+    file.close();
 }
 
 void PhotoMosaic::loadImages(std::string dirPath) {
@@ -38,24 +48,39 @@ void PhotoMosaic::loadImages(std::string dirPath) {
         ofImage img;
         Image newImage;
         img.load(imagePath);
-        newImage.mat = ofxCv::toCv(img).clone();
-        newImage.meanColor = cv::mean(newImage.mat);
+//        newImage.mat = ofxCv::toCv(img).clone();
+//        cv::Mat imgMat = newImage.mat;
+        cv::Mat imgMat = ofxCv::toCv(img);
+        newImage.meanColor = cv::mean(imgMat);
         newImage.filepath = imagePath;
         newImage.usedCount = 0;
         images.push_back(newImage);
+    }
+    
+    saveImagesInfoToDisk();
+}
+
+void PhotoMosaic::loadImagesFromTxt(std::string txtPath) {
+    ofBuffer buffer = ofBufferFromFile(txtPath);
+    for (auto line : buffer.getLines()) {
+        std::vector<string> info = ofSplitString(line, ",");
+        Image img;
+        if (info[0] == "") {
+            continue;
+        }
+        img.filepath = info[0];
+        img.meanColor = cv::Scalar(ofToFloat(info[1]), ofToFloat(info[2]), ofToFloat(info[3]));
+        img.usedCount = 0;
+        images.push_back(img);
+        
     }
 }
 
 void PhotoMosaic::loadBaseImage(std::string filePath) {
     // load base image
     baseImage.load(ofToDataPath(filePath));
-    
-    
-//    ofxCv::imitate(resultImage, baseImage);
-    
     baseMat = ofxCv::toCv(baseImage);
     std::cout << baseMat.cols << ":" << baseMat.rows << std::endl;
-//    resultMat = ofxCv::toCv(resultImage);
     baseMat.copyTo(resultMat);
 
     
@@ -71,25 +96,15 @@ void PhotoMosaic::loadBaseImage(std::string filePath) {
     computeTileAvgRGB(baseMat, tileMat, resultMat);
     
     cv::Mat matchList;
-    tileToImages(matchList, tileMat);
-    
     
     tileImage.allocate(tileMat.cols, tileMat.rows, baseImage.getImageType());
     ofxCv::toOf(tileMat, tileImage);
     baseImage.update();
-//    resultImage.update();
     tileImage.update();
-
-    // cv::imshow("result", resultMat);
 }
 
-
-cv::Mat PhotoMosaic::tileToImages(cv::Mat& matchList, const cv::Mat& tileMat) {
-    matchList = cv::Mat(tileMat.rows, tileMat.cols, CV_8UC1);
-    int t_Width = OUT_RES_W / tileMat.cols;
-    int t_Height = OUT_RES_H / tileMat.rows;
-    
-    cv::Mat tmpMat(OUT_RES_H, OUT_RES_W, CV_8UC3);
+void PhotoMosaic::getNearestImageSet(std::vector<std::vector<cv::Point2d> >& imageMap) {
+    imageMap.resize(images.size());
     
     for (int j = 0; j < tileMat.rows; j++) {
         for (int i = 0; i < tileMat.cols; i++) {
@@ -99,20 +114,35 @@ cv::Mat PhotoMosaic::tileToImages(cv::Mat& matchList, const cv::Mat& tileMat) {
             color[2] = tileMat.at<cv::Vec3b>(j, i)[2];
             
             int index = findNearestImage(color);
-            //matchList.at<uchar>(j, i) = index;
-            cv::Mat smallMat(t_Height, t_Width, images[index].mat.type());
-            cv::resize(images[index].mat, smallMat, cv::Size(t_Width, t_Height), CV_INTER_NN);
-            cv::Mat roiMat = tmpMat(cv::Rect(i * t_Width, j * t_Height, t_Width, t_Height));
-            smallMat.copyTo(roiMat);
-//            cv::imshow("test", smallMat);
+            imageMap[index].push_back(cv::Point(i, j));
         }
     }
+    return imageMap;
+}
 
-//    cv::imshow("test", tmpMat);
-    resultImage.allocate(tmpMat.cols, tmpMat.rows, resultImage.getImageType());
-    ofxCv::toOf(tmpMat, resultImage);
-    resultImage.update();
-//    resultImage.update();
+
+cv::Mat PhotoMosaic::tileToImages() {
+    int t_Width = OUT_RES_W / tileMat.cols;
+    int t_Height = OUT_RES_H / tileMat.rows;
+    
+    cv::Mat tmpMat(OUT_RES_H, OUT_RES_W, CV_8UC3);
+    std::vector<std::vector<cv::Point2d> > imageMap;
+    
+    getNearestImageSet(imageMap);
+    
+    for (int p = 0; p < imageMap.size(); p++) {
+        ofImage img;
+        img.load(images[p].filepath);
+        cv::Mat imgMat = ofxCv::toCv(img);
+        cv::resize(imgMat, imgMat, cv::Size(t_Width, t_Height), CV_INTER_NN);
+        for (int q = 0; q < imageMap[p].size(); q++) {
+            int i = imageMap[p][q].x;
+            int j = imageMap[p][q].y;
+            cv::Mat roiMat = tmpMat(cv::Rect(i * t_Width, j * t_Height, t_Width, t_Height));
+            imgMat.copyTo(roiMat);
+        }
+        
+    }
     return tmpMat;
 }
 
@@ -128,10 +158,11 @@ int PhotoMosaic::findNearestImage(cv::Scalar color) {
     
     std::priority_queue<std::pair<int, int>, std::vector<std::pair<int, int> >, std::greater<std::pair<int, int> > > que2;
     
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < 20; i++) {
         Image img = images[que.top().second];
-        que.pop();
         que2.push(std::pair<int, int>(img.usedCount, que.top().second));
+        que.pop();
+        
     }
     
     images[que2.top().second].usedCount++;

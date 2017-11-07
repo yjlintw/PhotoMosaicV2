@@ -3,7 +3,8 @@
 //--------------------------------------------------------------
 void ofApp::setup(){
     photoMosaic = YJL::PhotoMosaic();
-    photoMosaic.loadImages("/Users/peacedove/Pictures/Wallpaper");
+//    photoMosaic.loadImages("/Users/peacedove/Downloads/WeddingPhoto/");
+    photoMosaic.loadImagesFromTxt(ofToDataPath("info.txt"));
     photoMosaic.loadBaseImage("base.jpg");
 }
 
@@ -19,7 +20,15 @@ void ofApp::draw(){
 
 //--------------------------------------------------------------
 void ofApp::keyPressed(int key){
-
+    if (key == 'r') {
+        std::cout << "Processing..." << std::endl;
+        ofImage img;
+        cv::Mat result = photoMosaic.tileToImages();
+        img.allocate(result.rows, result.cols, OF_IMAGE_COLOR);
+        ofxCv::toOf(result, img);
+        img.save("output.jpg");
+        std::cout << "Image Saved" << std::endl;
+    }
 }
 
 //--------------------------------------------------------------
