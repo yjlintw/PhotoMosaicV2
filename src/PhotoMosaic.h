@@ -14,6 +14,8 @@ namespace YJL {
         int TILE_HEIGHT;
         int OUT_RES_W;
         int OUT_RES_H;
+        int OUT_SUB_X;
+        int OUT_SUB_Y;
 
         // Constructor
         PhotoMosaic();
@@ -24,7 +26,7 @@ namespace YJL {
         cv::Mat tileToImages();
         
         void debugDraw();
-        
+        void loadImageMap(std::string filePath);
 
     private:
         ofImage baseImage;
@@ -34,11 +36,15 @@ namespace YJL {
         cv::Mat tileMat;
         cv::Mat resultMat;
         cv::Mat matchList;
+        std::vector<std::vector<cv::Point2d> > imageMap;
+        std::vector<ofImage> outputImages;
         
         void computeTileAvgRGB(const cv::Mat& mat, cv::Mat& tileMat, cv::Mat& debugMat);
         int findNearestImage(cv::Scalar color);
         void saveImagesInfoToDisk();
-        void getNearestImageSet(std::vector<std::vector<cv::Point2d> >& imageMap);
+        void updateImageMap();
+        void saveImageMap();
+        
         
     };
 }

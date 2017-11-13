@@ -1,13 +1,16 @@
 #include "PhotoMosaic.h"
 #include <functional>
 #include <queue>
+#include <fstream>
 using namespace YJL;
 
 PhotoMosaic::PhotoMosaic() {
-    TILE_WIDTH = 8;
-    TILE_HEIGHT = 6;
-    OUT_RES_W = 1776 * 10;
-    OUT_RES_H = 1332 * 10;
+    TILE_WIDTH = 20;
+    TILE_HEIGHT = 15;
+    OUT_RES_W = 1800 * 40;
+    OUT_RES_H = 1350 * 40;
+    OUT_SUB_X = 9;
+    OUT_SUB_Y = 9;
 }
 
 void PhotoMosaic::debugDraw() {
@@ -103,7 +106,7 @@ void PhotoMosaic::loadBaseImage(std::string filePath) {
     tileImage.update();
 }
 
-void PhotoMosaic::getNearestImageSet(std::vector<std::vector<cv::Point2d> >& imageMap) {
+void PhotoMosaic::updateImageMap() {
     imageMap.resize(images.size());
     
     for (int j = 0; j < tileMat.rows; j++) {
@@ -117,19 +120,60 @@ void PhotoMosaic::getNearestImageSet(std::vector<std::vector<cv::Point2d> >& ima
             imageMap[index].push_back(cv::Point(i, j));
         }
     }
-    return imageMap;
+    saveImageMap();
+}
+
+void PhotoMosaic::loadImageMap(std::string filePath) {
+    std::ifstream inputFile(filePath);
+    imageMap.resize(images.size());
+    std::string line;
+    while(std::getline(inputFile, line)) {
+        if (line == "") {
+            continue;
+        }
+        std::vector<std::string> result1 = ofSplitString(line, ":");
+        int index = std::stoi(result1[0]);
+        std::vector<std::string> points = ofSplitString(result1[1], ";");
+
+        for (int i = 0; i < points.size(); i++) {
+            if (points[i] == "") continue;
+            std::vector<std::string> values = ofSplitString(points[i], ",");
+            cv::Point2d point(std::stoi(values[0]), std::stoi(values[1]));
+            imageMap[index].push_back(point);
+
+        }
+    }
+    
 }
 
 
 cv::Mat PhotoMosaic::tileToImages() {
+    int outputImagesNumber = OUT_SUB_X * OUT_SUB_Y;
+    // outputImages.clear();
+    
+    int SUB_IMAGE_WIDTH = OUT_RES_W / OUT_SUB_X;
+    int SUB_IMAGE_HEIGHT = OUT_RES_H / OUT_SUB_Y;
+    std::vector<cv::Mat> outputMats;
+    for (int i = 0; i < outputImagesNumber; i++) {
+        // ofImage img;
+        // img.allocate(SUB_IMAGE_WIDTH, SUB_IMAGE_HEIGHT, OF_IMAGE_COLOR);
+        // cv::Mat mat = ofxCv::toCv(img);
+        cv::Mat mat(SUB_IMAGE_HEIGHT, SUB_IMAGE_WIDTH, CV_8UC3);
+        outputMats.push_back(mat);
+        // outputImages.push_back(img);
+    }
+    
+    
     int t_Width = OUT_RES_W / tileMat.cols;
     int t_Height = OUT_RES_H / tileMat.rows;
+
     
     cv::Mat tmpMat(OUT_RES_H, OUT_RES_W, CV_8UC3);
-    std::vector<std::vector<cv::Point2d> > imageMap;
     
-    getNearestImageSet(imageMap);
-    
+    updateImageMap();
+    // loadImageMap(ofToDataPath("imageMap.txt"));
+    int SUB_IMAGE_CELL_X = tileMat.cols / OUT_SUB_X;
+    int SUB_IMAGE_CELL_Y = tileMat.rows / OUT_SUB_Y;
     for (int p = 0; p < imageMap.size(); p++) {
         ofImage img;
         img.load(images[p].filepath);
@@ -138,11 +182,33 @@ cv::Mat PhotoMosaic::tileToImages() {
         for (int q = 0; q < imageMap[p].size(); q++) {
             int i = imageMap[p][q].x;
             int j = imageMap[p][q].y;
-            cv::Mat roiMat = tmpMat(cv::Rect(i * t_Width, j * t_Height, t_Width, t_Height));
+            int subimg_i = i / SUB_IMAGE_CELL_X;
+            int subimg_j = j / SUB_IMAGE_CELL_Y;
+            int subimg_index = subimg_i + subimg_j * OUT_SUB_X;
+            cv::Mat targetMat = outputMats[subimg_index];
+            cv::Mat roiMat  = targetMat(cv::Rect(
+                (i - subimg_i * SUB_IMAGE_CELL_X) * t_Width,
+                (j - subimg_j * SUB_IMAGE_CELL_Y) * t_Height,
+                t_Width, t_Height
+            ));
+            // cv::Mat roiMat = tmpMat(cv::Rect(i * t_Width, j * t_Height, t_Width, t_Height));
             imgMat.copyTo(roiMat);
         }
         
     }
+
+    for (int i = 0; i < outputMats.size(); i++) {
+        cv::Mat mat = outputMats[i];
+//        cv::imwrite(ofToDataPath("output_" + to_string(i % OUT_SUB_X) + "_" + to_string(i / OUT_SUB_X) + ".jpg"), mat);
+        ofImage img;
+        img.allocate(mat.cols, mat.rows, OF_IMAGE_COLOR);
+        ofxCv::toOf(mat, img);
+        // ofImage img = outputImages[i];
+        // img.update();
+
+         img.save("output_" + to_string(i % OUT_SUB_X) + "_" + to_string(i / OUT_SUB_X) + ".jpg");
+    }
+
     return tmpMat;
 }
 
@@ -191,4 +257,18 @@ void PhotoMosaic::computeTileAvgRGB(const cv::Mat& mat, cv::Mat& tileMat, cv::Ma
     }
     
     cv::resize(tileMat, debugMat, cv::Size(mat.cols, mat.rows), 0, 0, CV_INTER_NN);
+}
+
+void PhotoMosaic::saveImageMap() {
+    ofstream stream;
+    stream.open(ofToDataPath("imageMap.txt"));
+    for (int i = 0; i < imageMap.size(); i++) {
+        stream << i << ":";
+        for (int j = 0; j < imageMap[i].size(); j++) {
+            stream << imageMap[i][j].x << "," << imageMap[i][j].y << ";";
+        }
+        stream << std::endl;
+    }
+    stream.close();
+
 }

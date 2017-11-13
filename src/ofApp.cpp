@@ -6,6 +6,7 @@ void ofApp::setup(){
 //    photoMosaic.loadImages("/Users/peacedove/Downloads/WeddingPhoto/");
     photoMosaic.loadImagesFromTxt(ofToDataPath("info.txt"));
     photoMosaic.loadBaseImage("base.jpg");
+    // photoMosaic.loadImageMap(ofToDataPath("imageMap.txt"));
 }
 
 //--------------------------------------------------------------
